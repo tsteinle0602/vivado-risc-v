@@ -22,6 +22,9 @@
 #include "ff.h"         /* Declarations of FatFs API */
 #include "diskio.h"     /* Declarations of device I/O functions */
 
+#if 0
+#include "kprintf.h"
+#endif
 
 /*--------------------------------------------------------------------------
 
@@ -1099,6 +1102,11 @@ static FRESULT move_window (    /* Returns FR_OK or FR_DISK_ERR */
     FRESULT res = FR_OK;
 
 
+#if 0
+    unsigned int *bs_55aa = 0x800002d8UL;
+    unsigned int *p2b0 = 0x800002d8UL - 62;
+    unsigned int val1, val2, val3, val4;
+#endif
     if (sect != fs->winsect) {  /* Window offset changed? */
 #if !FF_FS_READONLY
         res = sync_window(fs);      /* Flush the window */
@@ -1108,6 +1116,16 @@ static FRESULT move_window (    /* Returns FR_OK or FR_DISK_ERR */
                 sect = (LBA_t)0 - 1;    /* Invalidate window if read data is not valid */
                 res = FR_DISK_ERR;
             }
+#if 0
+            val1 = *bs_55aa;
+            val2 = *(fs->win + BS_55AA);
+            val3 = *(fs->win + BS_55AA - 46);
+            val4 = *p2b0;
+            kprintf("*%lx %lx\n", bs_55aa, val1);
+            kprintf("*%lx %lx\n", p2b0, val4);
+            kprintf("BS_55AA %lx %lx %lx\n", (fs->win + BS_55AA), val2, ld_word(fs->win + BS_55AA));
+            kprintf("BS_55AA - 46 %lx %lx %lx\n", (fs->win + BS_55AA - 46), val3, ld_word(fs->win + BS_55AA - 46));
+#endif
             fs->winsect = sect;
         }
     }
@@ -3298,6 +3316,9 @@ static UINT check_fs (  /* 0:FAT VBR, 1:exFAT VBR, 2:Valid BS but not FAT, 3:Inv
     fs->wflag = 0; fs->winsect = (LBA_t)0 - 1;      /* Invaidate window */
     if (move_window(fs, sect) != FR_OK) return 4;   /* Load the boot sector */
 
+#if 0
+    kprintf("check_fs BS_55AA %x\n", ld_word(fs->win + BS_55AA));
+#endif
     if (ld_word(fs->win + BS_55AA) != 0xAA55) return 3; /* Check boot signature (always here regardless of the sector size) */
 
     if (FF_FS_EXFAT && !mem_cmp(fs->win + BS_JmpBoot, "\xEB\x76\x90" "EXFAT   ", 11)) return 1; /* Check if exFAT VBR */
