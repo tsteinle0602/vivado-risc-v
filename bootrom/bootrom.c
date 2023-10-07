@@ -168,6 +168,14 @@ static const char * errno_to_str(void) {
     return "Unknown error code";
 }
 
+#if 0
+static uintptr_t cycles() {
+    uintptr_t cycles0;
+    asm volatile ("csrr %0, 0xB00" : "=r" (cycles0));
+    return cycles0;
+}
+#endif
+
 static void usleep(unsigned us) {
     uintptr_t cycles0;
     uintptr_t cycles1;
@@ -193,6 +201,9 @@ static int sdc_cmd_finish(unsigned cmd) {
                 response[3] = regs->response4;
                 return 0;
             }
+#if 0
+            kprintf("sdc_cmd_finish@%lx: status %x\n", cycles(), status);
+#endif
             errno = FR_DISK_ERR;
             if (status & SDC_CMD_INT_STATUS_CTE) errno = FR_TIMEOUT;
             if (status & SDC_CMD_INT_STATUS_CCRC) errno = ERR_CMD_CRC;
@@ -338,6 +349,9 @@ static int ini_sd(void) {
     card_type = CT_SD1;
     if (send_cmd(CMD8, 0x1AA) == 0) {
         if ((response[0] & 0xfff) != 0x1AA) {
+#if 0
+            kprintf("ini_sd@%lx: response[0] %x\n", cycles(), response[0]);
+#endif
             errno = ERR_CMD_CHECK;
             return -1;
         }
@@ -386,15 +400,39 @@ DSTATUS disk_status(BYTE drv) {
 
 DRESULT disk_read(BYTE drv, BYTE * buf, LBA_t sector, UINT count) {
 
+#if 0
+    uint64_t linebuf = (uint64_t)buf & ~0x100000000UL;
+    uint64_t endline = linebuf + (uint64_t)count*512UL;
+    uint64_t i, checksum = 0UL;
+    buf = (BYTE *)((uint64_t)buf & ~0x100000000UL);
+#endif
+
     if (!count) return RES_PARERR;
     if (drv_status & STA_NOINIT) return RES_NOTRDY;
 
+#if 0
+    for (i = linebuf; i < endline; i += 8) {
+        *(uint64_t *)i = i;
+    }
+
+    for (i = linebuf; i < endline; i += 8) {
+
+        //kprintf("init@%lx: %lx %lx\n", cycles(), i, *(uint64_t *)i);
+        checksum += cycles(), i, (volatile uint64_t)*(uint64_t *)i;
+    }
+    kprintf("init@%lx: checksum %lx\n", cycles(), checksum);
+#endif
     /* Convert LBA to byte address if needed */
     if (!(card_type & CT_BLOCK)) sector *= 512;
     while (count > 0) {
         UINT bcnt = count > MAX_BLOCK_CNT ? MAX_BLOCK_CNT : count;
         unsigned bytes = bcnt * 512;
         if (send_data_cmd(bcnt == 1 ? CMD17 : CMD18, sector, buf, bcnt) < 0) return RES_ERROR;
+#if 0
+        for (i = linebuf; i < endline; i += 8) {
+             kprintf("cmd17@%lx: %lx %lx\n", cycles(), i, (volatile uint64_t)*(uint64_t *)i);
+        }
+#endif
         if (bcnt > 1 && send_cmd(CMD12, 0) < 0) return RES_ERROR;
         sector += (card_type & CT_BLOCK) ? bcnt : bytes;
         count -= bcnt;
@@ -580,12 +618,33 @@ static int download(void) {
 
 int main(void) {
     uint64_t * bss = (uint64_t *)_fbss;
+#if 0
+    uint64_t * linebuf = 0x80001e00;//bss;
+    uint64_t * endline = linebuf + 0x40;//linebuf + 0x400;
+    uint64_t * i;
+    uint64_t   checksum = 0UL;
+#endif
     while (bss < (uint64_t *)_ebss) *bss++ = 0;
+
+#if 0
+    bss = (uint64_t *)_fbss +  0x10;
+    *bss = 0xdeadbeefUL;
+#endif
 
     for (;;) {
         kputs("");
         kprintf("RISC-V %d, Boot ROM V3.6\n", __riscv_xlen);
+#if 0
+        kprintf("main@%lx: _fbss %lx\n", cycles(), _fbss);
+#endif
         drv_status = STA_NOINIT;
+#if 0
+        for (i = linebuf; i < endline; i++) {
+            if (((*i & 0xffff000000000000) == 0xaa55000000000000) ||
+                ((*i & 0x00000000ffff0000) == 0x00000000aa550000))
+                kprintf("main@%lx: %lx %lx\n", cycles(), i, *i);
+        }
+#endif
         errno = f_mount(&fatfs, "", 1);
         if (errno) {
             kprintf("Cannot mount SD: %s\n", errno_to_str());

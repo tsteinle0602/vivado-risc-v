@@ -17,7 +17,7 @@ include board/$(BOARD)/Makefile.inc
 apt-install:
 	sudo apt update
 	sudo apt upgrade
-	sudo apt install default-jdk device-tree-compiler python curl gawk \
+	sudo apt install default-jdk device-tree-compiler curl gawk \
 	 libtinfo5 libmpc-dev libssl-dev gcc gcc-riscv64-linux-gnu flex bison
 
 apt-install-qemi:
@@ -273,6 +273,7 @@ FPGA_FNM    ?= riscv_wrapper.bit
 proj_name   = $(BOARD)-riscv
 proj_path   = workspace/$(CONFIG)/vivado-$(proj_name)
 proj_file   = $(proj_path)/$(proj_name).xpr
+xsa_file    = $(proj_path)/riscv_wrapper.xsa
 proj_time   = $(proj_path)/timestamp.txt
 synthesis   = $(proj_path)/$(proj_name).runs/synth_1/riscv_wrapper.dcp
 bitstream   = $(proj_path)/$(proj_name).runs/impl_1/$(FPGA_FNM)
@@ -320,12 +321,15 @@ $(bitstream): $(synthesis)
 	echo "reset_run impl_1" >>$(proj_path)/make-bitstream.tcl
 	echo "launch_runs -to_step write_bitstream -jobs $(MAX_THREADS) impl_1" >>$(proj_path)/make-bitstream.tcl
 	echo "wait_on_run impl_1" >>$(proj_path)/make-bitstream.tcl
+	echo "write_hw_platform -fixed -include_bit -force -file $(xsa_file)" >>$(proj_path)/make-bitstream.tcl
 	$(vivado) -source $(proj_path)/make-bitstream.tcl
 	if find $(proj_path) -name "*.log" -exec cat {} \; | grep 'ERROR: ' ; then exit 1 ; fi
 
 $(memcfg_file) $(prm_file): $(bitstream) workspace/boot.elf
 	echo "open_project $(proj_file)" >$(proj_path)/make-mcs.tcl
 	echo "write_cfgmem -format $(CFG_FORMAT) -interface $(CFG_DEVICE) -loadbit {up 0x0 $(bitstream)} $(CFG_BOOT) -file $(memcfg_file) -force" >>$(proj_path)/make-mcs.tcl
+#	echo "update_compile_order -fileset sources_1" >>$(proj_path)/make-mcs.tcl
+#	echo "write_hw_platform -fixed -include_bit -force -file $(xsa_file)" >>$(proj_path)/make-mcs.tcl
 	$(vivado) -source $(proj_path)/make-mcs.tcl
 
 bitstream: $(bitstream) $(memcfg_file)
