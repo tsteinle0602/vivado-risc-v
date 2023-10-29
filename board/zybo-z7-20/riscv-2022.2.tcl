@@ -134,7 +134,8 @@ if { $bCheckIPs == 1 } {
 xilinx.com:ip:clk_wiz:6.0\
 xilinx.com:ip:processing_system7:5.5\
 xilinx.com:ip:util_vector_logic:2.0\
-xilinx.com:ip:xlconstant:1.1\
+xilinx.com:ip:xlslice:1.0\
+xilinx.com:ip:axi_gpio:2.0\
 xilinx.com:ip:smartconnect:1.0\
 xilinx.com:ip:xlconcat:2.1\
 "
@@ -228,6 +229,8 @@ proc create_hier_cell_IO { parentCell nameHier } {
   current_bd_instance $hier_obj
 
   # Create interface pins
+  create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:gpio_rtl:1.0 GPIO_0
+
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M01_AXI
 
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 M_AXI
@@ -248,6 +251,7 @@ proc create_hier_cell_IO { parentCell nameHier } {
   create_bd_pin -dir O sdio_clk
   create_bd_pin -dir IO sdio_cmd
   create_bd_pin -dir IO -from 3 -to 0 sdio_dat
+  create_bd_pin -dir I -from 0 -to 0 zync_irq
 
   # Create instance: SD, and set properties
   set block_name sdc_controller
@@ -276,6 +280,11 @@ proc create_hier_cell_IO { parentCell nameHier } {
      return 1
    }
   
+  # Create instance: axi_gpio_0, and set properties
+  set axi_gpio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_0 ]
+  set_property CONFIG.C_ALL_OUTPUTS {1} $axi_gpio_0
+
+
   # Create instance: io_axi_m, and set properties
   set io_axi_m [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 io_axi_m ]
   set_property -dict [list \
@@ -289,7 +298,7 @@ proc create_hier_cell_IO { parentCell nameHier } {
   set io_axi_s [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 io_axi_s ]
   set_property -dict [list \
     CONFIG.NUM_CLKS {2} \
-    CONFIG.NUM_MI {2} \
+    CONFIG.NUM_MI {3} \
     CONFIG.NUM_SI {1} \
   ] $io_axi_s
 
@@ -302,23 +311,26 @@ proc create_hier_cell_IO { parentCell nameHier } {
   # Create interface connections
   connect_bd_intf_net -intf_net Conn1 [get_bd_intf_pins S01_AXI] [get_bd_intf_pins io_axi_m/S01_AXI]
   connect_bd_intf_net -intf_net Conn2 [get_bd_intf_pins M01_AXI] [get_bd_intf_pins io_axi_m/M01_AXI]
+  connect_bd_intf_net -intf_net Conn3 [get_bd_intf_pins GPIO_0] [get_bd_intf_pins axi_gpio_0/GPIO]
   connect_bd_intf_net -intf_net UART_RS232 [get_bd_intf_pins UART] [get_bd_intf_pins UART/RS232]
   connect_bd_intf_net -intf_net io_axi_m [get_bd_intf_pins M_AXI] [get_bd_intf_pins io_axi_m/M00_AXI]
   connect_bd_intf_net -intf_net io_axi_s [get_bd_intf_pins S_AXI] [get_bd_intf_pins io_axi_s/S00_AXI]
   connect_bd_intf_net -intf_net io_axi_s_M00_AXI [get_bd_intf_pins UART/S_AXI_LITE] [get_bd_intf_pins io_axi_s/M00_AXI]
   connect_bd_intf_net -intf_net io_axi_s_M01_AXI [get_bd_intf_pins SD/S_AXI_LITE] [get_bd_intf_pins io_axi_s/M01_AXI]
+  connect_bd_intf_net -intf_net io_axi_s_M02_AXI [get_bd_intf_pins axi_gpio_0/S_AXI] [get_bd_intf_pins io_axi_s/M02_AXI]
   connect_bd_intf_net -intf_net sd_axi_m [get_bd_intf_pins SD/M_AXI] [get_bd_intf_pins io_axi_m/S00_AXI]
 
   # Create port connections
   connect_bd_net -net AXI_clock [get_bd_pins axi_clock] [get_bd_pins io_axi_m/aclk] [get_bd_pins io_axi_s/aclk]
-  connect_bd_net -net AXI_reset [get_bd_pins axi_reset] [get_bd_pins SD/async_resetn] [get_bd_pins UART/async_resetn] [get_bd_pins io_axi_m/aresetn] [get_bd_pins io_axi_s/aresetn]
+  connect_bd_net -net AXI_reset [get_bd_pins axi_reset] [get_bd_pins SD/async_resetn] [get_bd_pins UART/async_resetn] [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins io_axi_m/aresetn] [get_bd_pins io_axi_s/aresetn]
+  connect_bd_net -net In3_0_1 [get_bd_pins zync_irq] [get_bd_pins xlconcat_0/In3]
   connect_bd_net -net SD_interrupt [get_bd_pins SD/interrupt] [get_bd_pins xlconcat_0/In1]
   connect_bd_net -net SD_sdio_cd [get_bd_pins sdio_cd] [get_bd_pins SD/sdio_cd]
   connect_bd_net -net SD_sdio_clk [get_bd_pins sdio_clk] [get_bd_pins SD/sdio_clk]
   connect_bd_net -net SD_sdio_cmd [get_bd_pins sdio_cmd] [get_bd_pins SD/sdio_cmd]
   connect_bd_net -net SD_sdio_dat [get_bd_pins sdio_dat] [get_bd_pins SD/sdio_dat]
   connect_bd_net -net UART_interrupt [get_bd_pins UART/interrupt] [get_bd_pins xlconcat_0/In0]
-  connect_bd_net -net clock_100MHz [get_bd_pins clock_100MHz] [get_bd_pins SD/clock] [get_bd_pins UART/clock] [get_bd_pins io_axi_m/aclk1] [get_bd_pins io_axi_s/aclk1]
+  connect_bd_net -net clock_100MHz [get_bd_pins clock_100MHz] [get_bd_pins SD/clock] [get_bd_pins UART/clock] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins io_axi_m/aclk1] [get_bd_pins io_axi_s/aclk1]
   connect_bd_net -net interrupts [get_bd_pins interrupts] [get_bd_pins xlconcat_0/dout]
 
   # Restore current instance
@@ -367,6 +379,7 @@ proc create_root_design { parentCell } {
   # Create ports
   set reset [ create_bd_port -dir I -from 0 -to 0 reset ]
   set rxd_led [ create_bd_port -dir O -type data rxd_led ]
+  set sdio_cd [ create_bd_port -dir I sdio_cd ]
   set sdio_clk [ create_bd_port -dir O sdio_clk ]
   set sdio_cmd [ create_bd_port -dir IO sdio_cmd ]
   set sdio_dat [ create_bd_port -dir IO -from 3 -to 0 sdio_dat ]
@@ -460,6 +473,7 @@ proc create_root_design { parentCell } {
     CONFIG.PCW_ENET_RESET_SELECT {Share reset pin} \
     CONFIG.PCW_EN_4K_TIMER {0} \
     CONFIG.PCW_EN_EMIO_ENET1 {0} \
+    CONFIG.PCW_EN_EMIO_GPIO {1} \
     CONFIG.PCW_EN_EMIO_UART0 {1} \
     CONFIG.PCW_EN_ENET0 {1} \
     CONFIG.PCW_EN_ENET1 {0} \
@@ -471,10 +485,14 @@ proc create_root_design { parentCell } {
     CONFIG.PCW_EN_USB0 {1} \
     CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {100} \
     CONFIG.PCW_FPGA_FCLK0_ENABLE {1} \
+    CONFIG.PCW_GPIO_EMIO_GPIO_ENABLE {1} \
+    CONFIG.PCW_GPIO_EMIO_GPIO_IO {32} \
+    CONFIG.PCW_GPIO_EMIO_GPIO_WIDTH {32} \
     CONFIG.PCW_GPIO_MIO_GPIO_ENABLE {1} \
     CONFIG.PCW_GPIO_MIO_GPIO_IO {MIO} \
     CONFIG.PCW_GPIO_PERIPHERAL_ENABLE {0} \
     CONFIG.PCW_I2C_RESET_ENABLE {0} \
+    CONFIG.PCW_IRQ_F2P_INTR {1} \
     CONFIG.PCW_IRQ_F2P_MODE {DIRECT} \
     CONFIG.PCW_MIO_0_IOTYPE {LVCMOS 3.3V} \
     CONFIG.PCW_MIO_0_PULLUP {enabled} \
@@ -753,6 +771,7 @@ proc create_root_design { parentCell } {
     CONFIG.PCW_USB_RESET_SELECT {Share reset pin} \
     CONFIG.PCW_USE_AXI_NONSECURE {0} \
     CONFIG.PCW_USE_CROSS_TRIGGER {0} \
+    CONFIG.PCW_USE_FABRIC_INTERRUPT {1} \
     CONFIG.PCW_USE_M_AXI_GP0 {1} \
     CONFIG.PCW_USE_S_AXI_GP0 {0} \
     CONFIG.PCW_USE_S_AXI_HP0 {1} \
@@ -767,8 +786,19 @@ proc create_root_design { parentCell } {
   ] $util_vector_logic_0
 
 
-  # Create instance: xlconstant_0, and set properties
-  set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
+  # Create instance: xlslice_0, and set properties
+  set xlslice_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_0 ]
+
+  # Create instance: xlslice_1, and set properties
+  set xlslice_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_1 ]
+
+  # Create instance: xlslice_2, and set properties
+  set xlslice_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 xlslice_2 ]
+  set_property -dict [list \
+    CONFIG.DIN_FROM {1} \
+    CONFIG.DIN_TO {1} \
+  ] $xlslice_2
+
 
   # Create interface connections
   connect_bd_intf_net -intf_net IO_M01_AXI [get_bd_intf_pins IO/M01_AXI] [get_bd_intf_pins processing_system7_0/S_AXI_HP0]
@@ -781,22 +811,28 @@ proc create_root_design { parentCell } {
   # Create port connections
   connect_bd_net -net AXI_clock [get_bd_pins IO/axi_clock] [get_bd_pins RocketChip/clock] [get_bd_pins clk_wiz_0/clk_out1] [get_bd_pins processing_system7_0/S_AXI_HP0_ACLK]
   connect_bd_net -net AXI_reset [get_bd_pins IO/axi_reset] [get_bd_pins RocketChip/aresetn]
+  connect_bd_net -net IO_GPIO_0_tri_o [get_bd_pins IO/GPIO_0_tri_o] [get_bd_pins xlslice_1/Din]
   connect_bd_net -net IO_UART_txd [get_bd_ports txd_led] [get_bd_pins IO/UART_txd] [get_bd_pins processing_system7_0/UART0_RX]
   connect_bd_net -net IO_interrupts [get_bd_pins IO/interrupts] [get_bd_pins RocketChip/interrupts]
   connect_bd_net -net IO_sdio_clk [get_bd_ports sdio_clk] [get_bd_pins IO/sdio_clk]
   connect_bd_net -net IO_sdio_cmd [get_bd_ports sdio_cmd] [get_bd_pins IO/sdio_cmd]
   connect_bd_net -net IO_sdio_dat [get_bd_ports sdio_dat] [get_bd_pins IO/sdio_dat]
-  connect_bd_net -net Op1_0_1 [get_bd_ports reset] [get_bd_pins util_vector_logic_0/Op1] [get_bd_pins util_vector_logic_0/Op2]
   connect_bd_net -net UART_rxd_1 [get_bd_ports rxd_led] [get_bd_pins IO/UART_rxd] [get_bd_pins processing_system7_0/UART0_TX]
   connect_bd_net -net clock_100MHz [get_bd_pins IO/clock_100MHz] [get_bd_pins clk_wiz_0/clk_out3]
   connect_bd_net -net clock_ok [get_bd_pins RocketChip/clock_ok] [get_bd_pins RocketChip/io_ok] [get_bd_pins RocketChip/mem_ok] [get_bd_pins clk_wiz_0/locked]
   connect_bd_net -net processing_system7_0_FCLK_CLK0 [get_bd_pins clk_wiz_0/clk_in1] [get_bd_pins processing_system7_0/FCLK_CLK0] [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK]
+  connect_bd_net -net processing_system7_0_GPIO_O [get_bd_pins processing_system7_0/GPIO_O] [get_bd_pins xlslice_0/Din] [get_bd_pins xlslice_2/Din]
+  connect_bd_net -net reset_1 [get_bd_ports reset] [get_bd_pins util_vector_logic_0/Op1]
   connect_bd_net -net reset_h [get_bd_pins RocketChip/sys_reset] [get_bd_pins util_vector_logic_0/Res]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins IO/sdio_cd] [get_bd_pins xlconstant_0/dout]
+  connect_bd_net -net sdio_cd_0_1 [get_bd_ports sdio_cd] [get_bd_pins IO/sdio_cd]
+  connect_bd_net -net xlslice_0_Dout [get_bd_pins util_vector_logic_0/Op2] [get_bd_pins xlslice_0/Dout]
+  connect_bd_net -net xlslice_1_Dout [get_bd_pins processing_system7_0/IRQ_F2P] [get_bd_pins xlslice_1/Dout]
+  connect_bd_net -net xlslice_2_Dout [get_bd_pins IO/zync_irq] [get_bd_pins xlslice_2/Dout]
 
   # Create address segments
   assign_bd_address -offset 0x60000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces RocketChip/IO_AXI4] [get_bd_addr_segs IO/SD/S_AXI_LITE/reg0] -force
   assign_bd_address -offset 0x60010000 -range 0x00010000 -target_address_space [get_bd_addr_spaces RocketChip/IO_AXI4] [get_bd_addr_segs IO/UART/S_AXI_LITE/reg0] -force
+  assign_bd_address -offset 0x60100000 -range 0x00010000 -target_address_space [get_bd_addr_spaces RocketChip/IO_AXI4] [get_bd_addr_segs IO/axi_gpio_0/S_AXI/Reg] -force
   assign_bd_address -offset 0x00000000 -range 0x40000000 -target_address_space [get_bd_addr_spaces RocketChip/MEM_AXI4] [get_bd_addr_segs processing_system7_0/S_AXI_HP0/HP0_DDR_LOWOCM] -force
   assign_bd_address -offset 0x00000000 -range 0x000100000000 -target_address_space [get_bd_addr_spaces IO/SD/M_AXI] [get_bd_addr_segs RocketChip/DMA_AXI4/reg0] -force
 
@@ -808,7 +844,6 @@ proc create_root_design { parentCell } {
   # Restore current instance
   current_bd_instance $oldCurInst
 
-  validate_bd_design
   save_bd_design
 }
 # End of create_root_design()
@@ -820,4 +855,6 @@ proc create_root_design { parentCell } {
 
 create_root_design ""
 
+
+common::send_gid_msg -ssname BD::TCL -id 2053 -severity "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 

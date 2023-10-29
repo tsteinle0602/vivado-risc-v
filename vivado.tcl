@@ -58,19 +58,7 @@ source ../../board/${vivado_board_name}/ethernet-${vivado_board_name}.tcl
 # Note: timing-constraints.tcl must be last
 set files [list \
  [file normalize ../../board/timing-constraints.tcl] \
- [file normalize ../../board/${vivado_board_name}/sdc_probed3.xdc] \
 ]
-#set files [list \
-# [file normalize ../../board/timing-constraints.tcl] \
-# [file normalize ../../board/${vivado_board_name}/risc_m_axi.xdc] \
-#]
-#set files [list \
-# [file normalize ../../board/timing-constraints.tcl] \
-# [file normalize ../../board/${vivado_board_name}/risc_m_axi.xdc] \
-#]
-#set files [list \
-# [file normalize ../../board/timing-constraints.tcl] \
-#]
 add_files -norecurse -fileset $constraint_fileset $files
 
 # Set file properties

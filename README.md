@@ -23,7 +23,8 @@ Latest Xilinx tools (Ver. 2020.1+) support debugging of RISC-V software over JTA
 [Digilent Genesys 2](https://digilent.com/reference/programmable-logic/genesys-2/start) or
 [Digilent Nexys Video](https://digilent.com/reference/programmable-logic/nexys-video/start) or
 [Digilent Nexys A7 100T](https://digilent.com/reference/programmable-logic/nexys-a7/start) or
-[Digilent Arty A7 100T](https://digilent.com/reference/programmable-logic/arty-a7/start) board.
+[Digilent Arty A7 100T](https://digilent.com/reference/programmable-logic/arty-a7/start)  or
+[Digilent Zybo Z7 20](https://digilent.com/reference/programmable-logic/zybo-z7/start) board.
 
 VC707 allows to prototype more powerful system: up to 8 64-bit RISC-V cores, up to 100MHz clock speed, 1GB RAM.
 
@@ -32,6 +33,8 @@ KC705 and Genesys 2 are as fast as VC707, but have slightly smaller FPGA - up to
 Nexys Video is several times less expensive, academic discount is avaialble. It supports up to 2 cores, up to 50MHz clock speed.
 
 Nexys A7 100T and Arty A7 100T are least expensive supported boards. They have small FPGA, barely enough to run Linux on a single core RISC-V at 50MHz.
+
+Zybo-Z7-20 is in the same price range as the Nexys boards but offer a dual-core Cortex-A9 processor. The FPGA has enough resources to implement a single core 64bit RISC-V at 50MHz. 
 
 ## Workstation
 [Ubuntu 20 LTS](https://ubuntu.com/download/desktop) machine with min 32GB RAM is recommended.
@@ -63,7 +66,7 @@ make update-submodules
 ## Build FPGA bitstream
 ```
 source /opt/Xilinx/Vivado/2022.2/settings64.sh
-make CONFIG=rocket64b2 BOARD=nexys-video bitstream
+make CONFIG=rocket64b1 BOARD=zybo-z7-20 bitstream
 ```
 For KC705, use `BOARD=kc705`
 
@@ -74,6 +77,8 @@ For Genesys 2 use `BOARD=genesys2`
 For Nexys A7 100T use `BOARD=nexys-a7-100t`
 
 For Arty A7 100T use `BOARD=arty-a7-100t`
+
+For Zybo Z7 20 use `BOARD=zybo-z7-20`
 
 Some of available CONFIG values (See [rocket.scala](https://github.com/eugene-tarassov/vivado-risc-v/blob/master/src/main/scala/rocket.scala)):
 * 64-bit big RISC-V cores, Linux capable:
